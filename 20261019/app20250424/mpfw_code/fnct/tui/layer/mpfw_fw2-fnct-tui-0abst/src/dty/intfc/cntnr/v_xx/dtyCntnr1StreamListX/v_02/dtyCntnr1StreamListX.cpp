@@ -1,0 +1,658 @@
+//  *******************************************************************************
+//  
+//  mpfw / fw2 - Multi Platform FirmWare FrameWork
+//  Copyright (C) (2023) Marco Dau
+//  
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published
+//  by the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//  
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//  
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//  
+//  You can contact me by the following email address
+//  marco <d o t> ing <d o t> dau <a t> gmail <d o t> com
+//  
+//  *******************************************************************************
+
+/*
+ * dtyCntnr1StreamListX.cpp
+ *
+ *  Created on: Nov, 10th 2024
+ *      Author: Marco Dau
+ */
+
+// debug 
+#include <iostream>
+#include <stdexcept>
+
+#include "dtyCntnr1StreamListX.h"
+
+
+// ****************************************************
+// section start **** CONSTRUCTOR *****
+
+    #define DB_HEADER_UNDEFINED         0xFFFFFFFF
+
+    dtyCntnr1StreamListX_t::dtyCntnr1StreamListX_t   (
+         dtyCntnr0StreamUnitIntfc_t* p_streamUnit
+        ,dtyIntfcAbstractUnitFunctional_t*  p_loopPTuiUnit
+        ,dtyIntfcAbstractUnitGraphic_t*  p_loopPTuiGraphic
+        
+    ) :
+             g_streamUnit                   {p_streamUnit           }
+        // section - LOOP MANAGEMENT
+            ,g_loopPTuiUnit                 {p_loopPTuiUnit         }
+            ,g_loopPTuiGraphic              {p_loopPTuiGraphic      }
+        // section - SELECT
+            ,g_selectHeaderId               {DB_HEADER_UNDEFINED    }
+    {}
+
+    // section end   **** CONSTRUCTOR ***** 
+    // ****************************************************
+    // --------------------------
+// ****************************************************
+// section start **** STRUCT & DATA STREAM MANAGEMENT: READ/WRITE *****
+
+        //    #define MARKER_START_POS        0   // 2-byte
+        //    #define DATA_LENGTH_POS         2   // 2-byte
+        //    #define DATA_BLOCK_INFO_POS     4   // 2-byte
+        //    #define DATA_BLOCK_END_POS      6   // 4-byte
+        //    #define DATA_START_POS          6
+        //    #define DATA_END___POS          DATA_LENGTH_POS + 1
+        //
+        //    #define HEADER_MARKER_POS           0
+        //    #define HEADER_DATA_LENGTH_POS      2
+        //    #define HEADER_INFO_POS             4
+        //    #define HEADER_DATA_BEGIN_POS       6
+        //    #define HEADER_SIZE                 10
+        //
+        //
+        //    // READ section
+        //    // private:
+        //    // uint32_t    getBlockHeaderIdPrev        (uint32_t p_idHeader);
+        //    uint32_t dtyCntnr1StreamListX_t::getBlockHeaderIdPrev    (uint32_t p_idHeader)  {                            
+        //        return (HEADER_SIZE < p_idHeader) ? (p_idHeader - HEADER_SIZE) : 0;
+        //    }
+        //
+        //    // uint32_t    getBlockHeaderIdNext        (uint32_t p_idHeader);
+        //    uint32_t dtyCntnr1StreamListX_t::getBlockHeaderIdNext    (uint32_t p_idHeader)  {         
+        //        return ((p_idHeader + HEADER_SIZE) < g_writeHeaderIdCurrent) ? p_idHeader + HEADER_SIZE : p_idHeader;
+        //    }
+        //
+        //    // uint32_t    getBlockDataId                  (uint32_t p_idHeader);
+        //    uint32_t dtyCntnr1StreamListX_t::getBlockDataId  (uint32_t p_idHeader) {                           
+        //        uint32_t l_byteHH = (g_pBuf[p_idHeader+HEADER_DATA_BEGIN_POS  ] << 24) & 0xFF000000;
+        //        uint32_t l_byteH_ = (g_pBuf[p_idHeader+HEADER_DATA_BEGIN_POS+1] << 16) & 0x00FF0000;
+        //        uint32_t l_byteL_ = (g_pBuf[p_idHeader+HEADER_DATA_BEGIN_POS+2] <<  8) & 0x0000FF00;
+        //        uint32_t l_byteLL = (g_pBuf[p_idHeader+HEADER_DATA_BEGIN_POS+3]      ) & 0x000000FF;
+        //        return (l_byteHH + l_byteH_ + l_byteL_ + l_byteLL);
+        //    }
+        //
+        //
+        //    // uint16_t    getBlockDataSize                (uint32_t p_idHeader);
+        //    uint16_t dtyCntnr1StreamListX_t::getBlockDataSize   (uint32_t p_idHeader) {                              
+        //        uint16_t l_byteH = (g_pBuf[p_idHeader+HEADER_DATA_LENGTH_POS  ] <<  8) & 0xFF00;
+        //        uint16_t l_byteL = (g_pBuf[p_idHeader+HEADER_DATA_LENGTH_POS+1]      ) & 0x00FF;
+        //        return (l_byteH + l_byteL);
+        //    }
+        //
+        //    // kMarker_t   getBlockDataMarker              (uint32_t p_idHeader);
+        //    kMarker_t dtyCntnr1StreamListX_t::getBlockDataMarker  (uint32_t p_idHeader) {                 
+        //        uint16_t l_byteH = (g_pBuf[p_idHeader+HEADER_MARKER_POS  ] <<  8) & 0xFF00;
+        //        uint16_t l_byteL = (g_pBuf[p_idHeader+HEADER_MARKER_POS+1]      ) & 0x00FF;
+        //        return static_cast<kMarker_t> (l_byteH + l_byteL);
+        //    }
+        //
+        //
+        //    // WRITE section
+        //
+        // public:
+        // void        add             (uint8_t* p_pBufIn, uint16_t p_bufInSize)                                             ;
+        void dtyCntnr1StreamListX_t::add         (uint8_t* p_pBufIn, uint16_t p_bufInSize)   {
+            add(p_pBufIn, p_bufInSize, kMarker_t::defaultX, kDataType_t::binary);
+        }
+    
+        // void        add             (uint8_t* p_pBufIn, uint16_t p_bufInSize, kMarker_t p_marker, kDataType_t p_dataType) ;
+        void dtyCntnr1StreamListX_t::add         (uint8_t* p_pBufIn, uint16_t p_bufInSize, kMarker_t p_marker, kDataType_t p_dataType)   {
+            g_streamUnit->add(p_pBufIn, p_bufInSize, p_marker, p_dataType);
+        }
+        //
+        //    //private:
+        //    // uint32_t    getWriteHeaderIdNext            (uint32_t p_idHeader);
+        //    uint32_t dtyCntnr1StreamListX_t::getWriteHeaderIdNext    (uint32_t p_idHeader)  {         
+        //
+        //        return ((p_idHeader + HEADER_SIZE) < g_bufSize) ? p_idHeader + HEADER_SIZE : p_idHeader;
+        //    }
+        //
+        //
+
+    // section end   **** STRUCT & DATA STREAM MANAGEMENT: READ/WRITE ***** 
+    // ****************************************************
+    // --------------------------
+// ****************************************************
+// section start **** LOOP MANAGEMENT *****
+    // private:
+
+    // uint8_t getLoopInitCycles               (void)  override;
+    uint8_t dtyCntnr1StreamListX_t::getLoopInitCycles       (void)    {
+        g_streamUnit->init();
+        return 1;
+    }
+
+    //bool    resetLoopElement                (void)  override;
+    bool dtyCntnr1StreamListX_t::resetLoopElement           (void)    {
+        return true;
+    }
+
+    // bool    nextLoopElement                 (void)  override;
+    bool dtyCntnr1StreamListX_t::nextLoopElement              (void)    {
+        return false;
+    }
+
+    // void        loopTuiParamSet                 (void);
+    void dtyCntnr1StreamListX_t::loopTuiParamSet   (void) {
+
+            // set all parameters to display element
+            g_loopY0r       = g_loopRows;
+            g_loopSelect    = (g_loopIdHeader == g_selectHeaderId);
+
+            g_loopPTuiUnit->setPtrData      (g_streamUnit->getPtrData       (g_loopIdHeader));
+            g_loopPTuiUnit->setPtrDataInfo  (g_streamUnit->getPtrDataInfo   (g_loopIdHeader));
+            
+            g_loopPTuiUnit->cntnrUpdParams(g_loopPTuiGraphic);
+            g_loopPTuiGraphic->setRelCoordY(g_loopY0r);
+            g_loopPTuiUnit->selectStateSet(g_loopSelect);
+
+            g_loopH = g_loopPTuiGraphic->getDimH();
+            g_loopRows      +=  g_loopH;
+
+    }
+
+    // bool        loopInit                        (uint32_t p_idHeader, int32_t p_y0r);
+    bool dtyCntnr1StreamListX_t::loopInit   (uint32_t p_idHeader, int32_t p_y0r) {
+        // check header position
+        if(g_streamUnit->chkBlockHeaderId(p_idHeader)) {
+            // idHeader is OK
+            g_loopIdHeader = p_idHeader;
+            g_loopRows = p_y0r;
+            loopTuiParamSet();
+            return true;
+        }
+
+        // the container is empty
+        return false;
+    }
+
+    // bool        loopDisplayBegin                (void);
+    bool dtyCntnr1StreamListX_t::loopDisplayBegin   (void) {
+        // the loop-DISPLAY reached the begin/top when
+        // 1. the first data block of container is seeked; the first data block is the one that idHeader = 0
+        // OR
+        // 2. the amount of rows of all data block analyzed before (that is g_loopRows) is greater or equal than the dispaly-BOX rows (that is g_displayBoxH)
+        return  (
+                (0 == g_loopIdHeader)
+            ||  (g_loopRows >= g_displayBoxH)
+        );
+    }
+
+    // bool        loopDisplayEnd                  (void);
+    bool dtyCntnr1StreamListX_t::loopDisplayEnd   (void) {
+        // the loop-DISPLAY reached the end/bottom when
+        // 1. the next header is equal to the first header to write (that is g_writeHeaderIdCurrent)
+        // OR
+        // 2. the amount of rows of all data block analyzed before (that is g_loopRows) is greater or equal than the dispaly-BOX rows (that is g_displayBoxH)
+        return  (
+                (g_loopIdHeader == g_streamUnit->getBlockHeaderIdNext(g_loopIdHeader))
+            ||  (g_loopRows >= g_displayBoxH)
+        );
+    }
+
+
+    // section end   **** LOOP MANAGEMENT ***** 
+    // ****************************************************
+    // --------------------------
+// ****************************************************
+// section start **** DISPLAY *****
+
+    #define P_P_PARENT static_cast<dtyIntfcAbstractUnitGraphic_t*>(p_pParent)
+
+    // private:
+
+    // bool    updCntnrRelCoord                (int32_t p_delta)  override;
+    bool dtyCntnr1StreamListX_t::updCntnrRelCoord           ([[maybe_unused]]int32_t p_delta)    {
+        return true;
+    }
+
+    // void    updElementCoordNbounds          (void)  override;
+    void dtyCntnr1StreamListX_t::updElementCoordNbounds       (void)    {
+        // the display-BOX (that is the display-BOX of the owner of the current container) has been modified, so
+        // the initialization params of tui element associate to container data block must be done
+        g_loopPTuiGraphic->updParamsAfterParentMod();
+
+        // N.B.: the relative coords of display-BEGIN element (that is, the data block begin) remain the same, therefore ...
+        // do not other things
+
+    }
+
+
+    /* / bool    bLoopInitDisplay                (uint8_t p_id, void* p_pParent)    override;
+    bool dtyCntnr1StreamListX_t::bLoopInitDisplay           (uint8_t p_id, void* p_pParent)    {
+        bool l_result = false;
+        if(p_id)    {
+            // run body loop step
+    
+            // the container is NOT empty, 
+            // the display-BEGIN parameters are already set to <p_idHeader> header, therefore ...
+    
+            // start the procedure/loop to determine the "dispaly-begin" data block
+            // N.B. the "dispaly-BEGIN" data block must be such that 
+            //      1. the header of dispaly-END data block is equal to p_idHeader
+            //      and
+            //      2. the last row of display-BOX contains the last data trunk of dispaly-END data block
+    
+            // run loop to determine the display-begin data block
+            if(!loopDisplayBegin()){
+                g_loopIdHeader    = getBlockHeaderIdPrev(g_loopIdHeader);
+                loopTuiParamSet();
+    
+                l_result = true;
+            } else {
+                // determine the relative coord to associate to the current loop data block (that is the dispaly-begin data block) that respects the second condition reported above
+                //      that is: "2. the last row of display-box contains the last data trunk of dispaly-end data block"
+                if(g_displayBoxH > g_loopRows)  {
+                    // g_loopIdHeader (and so also g_displayBeginIdHeader) is equal to zero, therefore ...
+                    g_loopY0r = 0;
+                } else {
+                    // N.B.: g_displayBoxH <= g_loopRows so g_loopY0r <= 0
+                    //       but (g_loopY0r + g_displayBeginH) > 0 because 
+                    //       (g_loopY0r + g_displayBeginH) = (g_displayBoxH - (g_loopRows - g_displayBeginH)) = (g_displayBoxH - g_loopRows[minus one step]) > 0 
+                    //       so the display-Begin element will be partially displayed
+                    g_loopY0r = static_cast<int32_t>(g_displayBoxH - g_loopRows);
+                }
+    
+                // 1. update the display-BEGIN parameters
+                g_displayBeginIdHeader      = g_loopIdHeader;
+                g_displayBeginIdData        = g_loopIdData;
+                g_displayBeginDataSize      = g_loopDataSize;
+                g_displayBeginH             = g_loopH;
+                g_displayBeginY0r           = g_loopY0r;
+    
+                // it can be omitted
+                l_result = false;
+            }
+    
+    
+        }   else {
+            // run the frist loop step (that is init step)
+            g_loopPTuiGraphic->init(P_P_PARENT);
+            g_displayBoxW = P_P_PARENT->getDspAreaDimXw();
+            g_displayBoxH = P_P_PARENT->getDspAreaDimYh();
+    
+            g_selectHeaderId = getBlockHeaderIdPrev(g_writeHeaderIdCurrent);
+    
+            loopInit(g_selectHeaderId,0);
+    
+            l_result = true;
+        }
+        return l_result;
+    }
+    */
+
+    //void    initDisplay                     (uint8_t p_id, void* p_pParent)    override;
+    void dtyCntnr1StreamListX_t::initDisplay                ([[maybe_unused]] uint8_t p_id, void* p_pParent)  {
+        // N.B.: this function is run inside a loop of only one cycle
+        g_loopPTuiGraphic->init(P_P_PARENT);
+        //g_loopPTuiUnit->cntnrInit(&g_loopPString, &g_loopPStringInfo);
+
+        g_displayBoxW = static_cast<dtyIntfcAbstractUnitGraphic_t*>(p_pParent)->getDspAreaDimXw();
+        g_displayBoxH = static_cast<dtyIntfcAbstractUnitGraphic_t*>(p_pParent)->getDspAreaDimYh();
+
+        initDisplayBeginParams(g_streamUnit->getBlockHeaderIdLast());    
+        g_selectHeaderId = g_streamUnit->getBlockHeaderIdLast();
+
+    }
+
+    // void    clearDisplayBox                 (void)  override;
+    void dtyCntnr1StreamListX_t::clearDisplayBox       (void)    {
+    }
+
+    // void    dspElement                      ([[maybe_unused]] bool p_recursively)   override;
+    void dtyCntnr1StreamListX_t::dspElement                   ([[maybe_unused]] bool p_recursively)  {
+        if(loopInit(g_displayBeginIdHeader, g_displayBeginY0r))    {
+            // container is NOT empty, therefore ...
+
+            // start the procedure/loop to display elments of the container
+            for(;;) {
+
+                // display tui element
+                g_loopPTuiGraphic->display();
+
+                // check status of the loop
+                if(loopDisplayEnd()) break;
+
+                // go to the next element to display
+                g_loopIdHeader      = g_streamUnit->getBlockHeaderIdNext(g_loopIdHeader);
+                // update tui element parameter
+                loopTuiParamSet();
+            }
+        }
+    }
+
+
+    // bool initDisplayBeginParams             (uint32_t p_idHeader);
+    bool dtyCntnr1StreamListX_t::initDisplayBeginParams     (uint32_t p_idHeader)      {
+
+        // check the position of header
+        if(loopInit(p_idHeader,0))   {
+            // the container is NOT empty, 
+            // the display-BEGIN parameters are already set to <p_idHeader> header, therefore ...
+
+            // start the procedure/loop to determine the "dispaly-begin" data block
+            // N.B. the "dispaly-BEGIN" data block must be such that 
+            //      1. the header of dispaly-END data block is equal to p_idHeader
+            //      and
+            //      2. the last row of display-BOX contains the last data trunk of dispaly-END data block
+
+            // run loop to determine the display-begin data block
+            while (!loopDisplayBegin()){
+                g_loopIdHeader    = g_streamUnit->getBlockHeaderIdPrev(g_loopIdHeader);
+                loopTuiParamSet();            
+            };
+
+            // determine the relative coord to associate to the current loop data block (that is the dispaly-begin data block) that respects the second condition reported above
+            //      that is: "2. the last row of display-box contains the last data trunk of dispaly-end data block"
+            if(g_displayBoxH > g_loopRows)  {
+                // g_loopIdHeader (and so also g_displayBeginIdHeader) is equal to zero, therefore ...
+                g_loopY0r = 0;
+            } else {
+                // N.B.: g_displayBoxH <= g_loopRows so g_loopY0r <= 0
+                //       but (g_loopY0r + g_displayBeginH) > 0 because 
+                //       (g_loopY0r + g_displayBeginH) = (g_displayBoxH - (g_loopRows - g_displayBeginH)) = (g_displayBoxH - g_loopRows[minus one step]) > 0 
+                //       so the display-Begin element will be partially displayed
+                g_loopY0r = static_cast<int32_t>(g_displayBoxH - g_loopRows);
+            }
+
+            // 1. update the display-BEGIN parameters
+            g_displayBeginIdHeader      = g_loopIdHeader;
+            g_displayBeginIdData        = g_loopIdData;
+            g_displayBeginDataSize      = g_loopDataSize;
+            g_displayBeginH             = g_loopH;
+            g_displayBeginY0r           = g_loopY0r;
+
+            return true;
+        }
+
+        // the container is empty
+        return false;
+    }
+
+    // void setDisplayBeginParams              (uint32_t p_idHeader, kPosition_t p_position);
+    void dtyCntnr1StreamListX_t::setDisplayBeginParams                (uint32_t p_idHeader, kPosition_t p_position)    {
+            if(kPosition_t::bottom == p_position)   {
+                initDisplayBeginParams(p_idHeader);
+            } else {
+                g_loopIdHeader = p_idHeader;
+                loopTuiParamSet();
+
+                g_displayBeginIdHeader      = g_loopIdHeader;
+                g_displayBeginIdData        = g_loopIdData;
+                g_displayBeginDataSize      = g_loopDataSize;
+                g_displayBeginH             = g_loopH;
+                if(kPosition_t::top                  == p_position)  g_displayBeginY0r = 0;
+                if(kPosition_t::topButLastRowOnly    == p_position)  g_displayBeginY0r = 1 - g_loopH;
+            }
+    }
+
+    // bool bDisplayLastRowVsLowerBound        (void);
+    bool dtyCntnr1StreamListX_t::bDisplayLastRowVsLowerBound           (void)    {
+        // 
+        if(loopInit(g_displayBeginIdHeader, g_displayBeginY0r))    {
+            // container is NOT empty, therefore ...
+
+            // start the procedure/loop to display elments of the container
+            for(;;) {
+
+                // check status of the loop
+                if(loopDisplayEnd()) break;
+
+                // go to the next element to display
+                g_loopIdHeader      = g_streamUnit->getBlockHeaderIdNext(g_loopIdHeader);
+                // update tui element parameter
+                loopTuiParamSet();
+            }
+
+            return ((g_loopIdHeader == g_streamUnit->getBlockHeaderIdNext(g_loopIdHeader)) && (g_loopRows <= g_displayBoxH));
+
+        }
+        return false;
+    }
+
+
+    // section end   **** DISPLAY ***** 
+    // ****************************************************
+    // --------------------------
+// ****************************************************
+// section start **** INPUT EVENTS: SELECTION & MOUSE ROLL *****
+
+    // new version; this version seems OK but it must be tested deeply
+    bool dtyCntnr1StreamListX_t::selectElementLast      (void)      {
+        g_selectHeaderId = g_streamUnit->getBlockHeaderIdLast();
+        shiftLoopElementBySelect(0);
+        dspElement(false);
+
+        return true;
+    }
+
+    // new version; this version seems OK but it must be tested deeply
+    void*   dtyCntnr1StreamListX_t::getSelectedItem                 (void)  {
+
+        return g_loopPTuiGraphic;   // g_streamUnit->getPtrData       (g_selectHeaderId);
+        // return nullptr;
+    }
+
+    void*   dtyCntnr1StreamListX_t::getSelectedItemPtrData                 (void)  {
+
+        return g_streamUnit->getPtrData       (g_selectHeaderId);
+    }
+
+    // void    shiftLoopElementRollUp          (void)  override;
+    void dtyCntnr1StreamListX_t::shiftLoopElementRollUp           (void)    {
+        if(!bDisplayLastRowVsLowerBound())   {
+            // shift up the current display-begin element
+            g_displayBeginY0r--;
+            // check the status of the current display-begin element
+            if(0 < static_cast<int32_t>(g_displayBeginY0r+g_displayBeginH))   {
+                // at least one row of the current display-begin element is visible, therefore ...
+                // dispaly-begin data block remains the same
+            } else {
+                // no rows of the current display-begin element is visible, they are all higher than the display-box, therefore ...
+                // dispaly-begin data block must be updated to the next element/data block
+                uint32_t l_idHeader = g_streamUnit->getBlockHeaderIdNext(g_displayBeginIdHeader);
+                if(l_idHeader != g_displayBeginIdHeader)    {
+
+                    g_displayBeginIdHeader    = l_idHeader;
+
+                    // the new data block  (that is display-begin element) is located at the top of display-box
+                    setDisplayBeginParams(g_displayBeginIdHeader, kPosition_t::top);
+                } else {
+
+                    g_displayBeginY0r++;
+                }
+            }
+        } else {
+
+            // do nothing
+        }
+
+    }
+
+
+    // void    shiftLoopElementRollDown        (void)  override;
+    void dtyCntnr1StreamListX_t::shiftLoopElementRollDown           (void)    {
+
+        // shift down the current display-begin element
+        g_displayBeginY0r++;
+        // check the status of the current display-begin element
+        if(g_displayBeginY0r <= 0)   {
+
+            // the first row of the current display-begin element is still negative so 
+            // the first row of the display-BOX belongs to the current display-begin element, therefore ...
+            // dispaly-begin data block remains the same
+        } else {
+            // the first row of the current display-begin element is equal to 1 or greater so
+            // the first row of the display-BOX does not belong to the current display-begin element, therefore ...
+            // dispaly-begin data block must be updated to the previous one
+            uint32_t l_idHeader = g_streamUnit->getBlockHeaderIdPrev(g_displayBeginIdHeader);
+            if(l_idHeader != g_displayBeginIdHeader)    {
+
+                g_displayBeginIdHeader    = l_idHeader;
+
+                // the new data block  (that is display-begin element) is located at the top of display-box but only the its last row can be displayed
+                setDisplayBeginParams(g_displayBeginIdHeader, kPosition_t::topButLastRowOnly);
+            } else {
+
+                g_displayBeginY0r--;
+            }
+
+        }
+    }
+
+    bool dtyCntnr1StreamListX_t::bFindSelectedElement     (void)  {
+        bool l_result = false;
+        if(loopInit(g_displayBeginIdHeader, g_displayBeginY0r))    {
+            // container is NOT empty, therefore ...
+
+            // start the procedure/loop to display elments of the container
+            for(;;) {
+
+                g_loopPTuiGraphic->updParamsAfterParentMod();
+                if(g_loopPTuiGraphic->bMouseClickInsideBounds()) {
+                    g_selectHeaderId = g_loopIdHeader;
+                    l_result = true;
+                    break;
+                }
+
+                // check status of the loop
+                if(loopDisplayEnd()) break;
+
+                // go to the next element to display
+                g_loopIdHeader      = g_streamUnit->getBlockHeaderIdNext(g_loopIdHeader);
+                // update tui element parameter
+                loopTuiParamSet();
+            }
+        }
+        return l_result;
+    }
+
+    // new version; this version seems OK but it must be tested deeply
+    bool dtyCntnr1StreamListX_t::selectElementByMouse      (void)      {
+        bool l_result = bFindSelectedElement();
+        if(l_result)    {
+            // check the visibility status of element
+            if(bSelectVisibleCompletely())   {
+                // element is completely visible, therefore ...
+                // element shift is not necessary,
+                // do nothing
+            } else {
+                // element is NOT completely visible, therefore ...
+
+                // shift element to the suitable position
+                shiftLoopElementBySelect(0);
+            }
+
+            dspElement(false);
+        }
+
+        // N.B.: if "selectyByMouse" function of the selected item is not called then return value is false
+        return false;
+    }
+
+
+    // int32_t getDeltaShiftBySelect           (void)  override;
+    int32_t dtyCntnr1StreamListX_t::getDeltaShiftBySelect                ()    {
+        return 0;
+    }
+
+    // void    shiftLoopElementBySelect        (int32_t p_delta)  override;
+    void dtyCntnr1StreamListX_t::shiftLoopElementBySelect                ([[maybe_unused]] int32_t p_delta)    {
+        // set display-Element parameters to select-Element parameters
+        // and 
+        // determine the postion inside the display-BOX of the display-Element
+        if(g_selectHeaderId <= g_displayBeginIdHeader)   {
+            // select-Element is located higher than display-BOX
+            // shift it to Upper of the display-BOX, therefore ...
+            // select-Element is equal to displayBegin-element
+            setDisplayBeginParams(g_selectHeaderId, kPosition_t::top);
+        } else {
+            // N.B.: when the current function is called it means that the selected element is not completely visible (see bSelectVisibleCompletely() function) and
+            //      therefore here the select-Element is ncessarily located under the display-BOX
+            // shift it to Bottom of the display-BOX, therefore ...
+            // select-Element is different than displayBegin-element
+            setDisplayBeginParams(g_selectHeaderId, kPosition_t::bottom);
+        }
+    }
+
+    // void    updSelectElement                (void)  override;
+    void dtyCntnr1StreamListX_t::updSelectElement                (void)    {
+    }
+
+
+    // bool setSelectPrev                  (void) override;
+    bool dtyCntnr1StreamListX_t::setSelectPrev                  (void)    {
+
+        uint32_t l_idHeader = g_streamUnit->getBlockHeaderIdPrev(g_selectHeaderId);    
+        // N.B.:  (l_idHeader == g_selectHeaderId) means that the select element is the first one
+        bool l_result = (l_idHeader != g_selectHeaderId);
+        if(l_result)    {
+            g_selectHeaderId    = l_idHeader;
+        }
+        return true;
+    }
+
+    // bool setSelectNext                  (void) override;
+    bool dtyCntnr1StreamListX_t::setSelectNext                  (void)    {
+
+        uint32_t l_idHeader = g_streamUnit->getBlockHeaderIdNext(g_selectHeaderId);
+        // N.B.:  (l_idHeader == g_selectHeaderId) means that the select element is the last one
+        bool l_result = (l_idHeader != g_selectHeaderId);
+        if(l_result)    {
+            g_selectHeaderId    = l_idHeader;
+        }
+        return true;
+    }
+
+    // bool bSelectVisibleCompletely       (void) override;
+    bool dtyCntnr1StreamListX_t::bSelectVisibleCompletely     (void)      {
+        bool l_result = false;
+        if(loopInit(g_displayBeginIdHeader, g_displayBeginY0r))    {
+            for(;;) {
+                if(g_loopSelect) {
+                    l_result = g_loopPTuiGraphic->bVisibleCompletely();
+                    break;
+                }
+
+                // check status of the loop
+                if(loopDisplayEnd()) break;
+
+                // go to the next element to display
+                g_loopIdHeader      = g_streamUnit->getBlockHeaderIdNext(g_loopIdHeader);
+                // update tui element parameter
+                loopTuiParamSet();
+            }
+        }
+
+        return l_result;
+    }
+
+
+
+
+    // section end   **** INPUT EVENTS: SELECTION & MOUSE ROLL ***** 
+    // ****************************************************

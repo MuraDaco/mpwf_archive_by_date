@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+    ],
+    "settings": {
+        "terminal.integrated.env.osx": {
+            "PATH":"/Users/work/ObsiData/distributed_git/mpfw_archive/20261019/app20250424/mpfw_code/scrp:${env:PATH}"
+        }
+    }
+}
